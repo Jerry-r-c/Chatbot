@@ -1,20 +1,13 @@
 const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
-const puter = require('@heyputer/puter.js');
 const express = require('express');
+const axios = require('axios');
 
-// 1. Setup Express (Needed for Render to stay alive)
+// 1. Keep-Alive Server for Render
 const app = express();
-const port = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Llama-3 & Pgen Bot is Live!'));
+app.listen(process.env.PORT || 3000);
 
-app.get('/', (req, res) => {
-  res.send('AI Bot is running 24/7!');
-});
-
-app.listen(port, () => {
-  console.log(`Web server is listening on port ${port}`);
-});
-
-// 2. Setup Discord Bot
+// 2. Discord Bot Setup
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -23,7 +16,7 @@ const client = new Client({
   ],
 });
 
-const PREFIX = '.'; 
+const PREFIX = '.';
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -35,45 +28,55 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // .msg Command (AI Chat)
+  // --- Llama-3 AI Chat (.msg) ---
   if (command === 'msg') {
     const prompt = args.join(' ');
-    if (!prompt) return message.reply("Please provide a message!");
+    if (!prompt) return message.reply("Ask Llama-3 something!");
 
     try {
-      const response = await puter.ai.chat(prompt, {
-        model: 'gemini-3-flash-preview'
-      });
-      message.reply(response.toString());
+      // Free Llama-3-8B Inference
+      const response = await axios.post(
+        'https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct',
+        { inputs: prompt },
+        { headers: { "Content-Type": "application/json" } }
+      );
+
+      let botReply = response.data[0].generated_text || "I'm thinking...";
+      
+      // Clean up output (HuggingFace often includes the prompt in the reply)
+      const cleanReply = botReply.replace(prompt, "").trim();
+      
+      if (cleanReply.length > 2000) {
+        message.reply(cleanReply.substring(0, 1900) + "...");
+      } else {
+        message.reply(cleanReply || "I'm not sure how to answer that.");
+      }
     } catch (err) {
       console.error(err);
-      message.reply("Error talking to AI.");
+      message.reply("Llama-3 is a bit busy. Try again in a few seconds!");
     }
   }
 
-  // .pgen Command (Photo Gen)
+  // --- Image Generation (.pgen) ---
   if (command === 'pgen') {
     const prompt = args.join(' ');
-    if (!prompt) return message.reply("Describe the photo you want!");
-
-    const waitingMsg = await message.channel.send("🎨 Generating your image... please wait.");
+    if (!prompt) return message.reply("Describe what you want to see!");
 
     try {
-      // Puter returns the image data
-      const imageResponse = await puter.ai.txt2img(prompt, { 
-        model: "gemini-3-pro-image-preview" 
-      });
-
-      // Send the image to Discord
-      const attachment = new AttachmentBuilder(imageResponse, { name: 'generated.png' });
+      const waiting = await message.reply("🎨 Generating your image... please wait.");
+      
+      // Use a random seed to ensure a unique image every time
+      const seed = Math.floor(Math.random() * 99999);
+      const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}`;
+      
+      const attachment = new AttachmentBuilder(imageUrl, { name: 'ai_image.png' });
       await message.reply({ files: [attachment] });
-      waitingMsg.delete();
+      waiting.delete();
     } catch (err) {
       console.error(err);
-      message.reply("Failed to generate image.");
+      message.reply("Failed to generate that image.");
     }
   }
 });
 
-// Log in using the Environment Variable from Render
 client.login(process.env.DISCORD_TOKEN);
