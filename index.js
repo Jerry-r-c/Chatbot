@@ -1,81 +1,85 @@
-const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
 
-// 1. Keep-Alive Server for Render
 const app = express();
-app.get('/', (req, res) => res.send('Llama-3 & Pgen Bot is Live!'));
+app.get('/', (req, res) => res.send('AI Bot is Live!'));
 app.listen(process.env.PORT || 3000);
 
-// 2. Discord Bot Setup
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
-const PREFIX = '.';
+// Your Model Options
+const AI_MODELS = [
+  { name: 'Mistral', path: 'mistralai/Mistral-7B-Instruct-v0.2' },
+  { name: 'Gemma', path: 'google/gemma-1.1-7b-it' },
+  { name: 'Zephyr', path: 'HuggingFaceH4/zephyr-7b-beta' }
+];
 
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-});
+let currentModelIndex = 0; // Default is Mistral
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+  if (message.author.bot || !message.content.startsWith('.')) return;
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // --- Llama-3 AI Chat (.msg) ---
+  // --- .models Command ---
+  if (command === 'models') {
+    const list = AI_MODELS.map((m, i) => `${i === currentModelIndex ? '✅' : `[${i+1}]`} **${m.name}**`).join('\n');
+    const embed = new EmbedBuilder()
+      .setTitle("🤖 Model Selection")
+      .setDescription(`Current: **${AI_MODELS[currentModelIndex].name}**\n\n${list}\n\nType \`.change [number]\` to switch!`)
+      .setColor('#5865F2');
+    return message.reply({ embeds: [embed] });
+  }
+
+  // --- .change Command ---
+  if (command === 'change') {
+    const choice = parseInt(args[0]) - 1;
+    if (AI_MODELS[choice]) {
+      currentModelIndex = choice;
+      return message.reply(`✅ Switched to **${AI_MODELS[currentModelIndex].name}**`);
+    }
+    return message.reply("Invalid number! Use `.models` to see the list.");
+  }
+
+  // --- .msg Command ---
   if (command === 'msg') {
     const prompt = args.join(' ');
-    if (!prompt) return message.reply("Ask Llama-3 something!");
+    if (!prompt) return message.reply("Ask something!");
 
     try {
-      // Free Llama-3-8B Inference
-      const response = await axios.post(
-        'https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct',
+      const res = await axios.post(
+        `https://api-inference.huggingface.co/models/${AI_MODELS[currentModelIndex].path}`,
         { inputs: prompt },
-        { headers: { "Content-Type": "application/json" } }
+        { headers: { "Content-Type": "application/json" }, timeout: 10000 }
       );
-
-      let botReply = response.data[0].generated_text || "I'm thinking...";
-      
-      // Clean up output (HuggingFace often includes the prompt in the reply)
-      const cleanReply = botReply.replace(prompt, "").trim();
-      
-      if (cleanReply.length > 2000) {
-        message.reply(cleanReply.substring(0, 1900) + "...");
-      } else {
-        message.reply(cleanReply || "I'm not sure how to answer that.");
-      }
+      const reply = res.data[0].generated_text.replace(prompt, "").trim();
+      message.reply(`**[${AI_MODELS[currentModelIndex].name}]**: ${reply || "I have no words..."}`);
     } catch (err) {
-      console.error(err);
-      message.reply("Llama-3 is a bit busy. Try again in a few seconds!");
+      message.reply(`❌ **${AI_MODELS[currentModelIndex].name}** is busy! Use \`.change\` to try another.`);
     }
   }
 
-  // --- Image Generation (.pgen) ---
+  // --- .pgen Command (Direct Link Fix) ---
   if (command === 'pgen') {
     const prompt = args.join(' ');
-    if (!prompt) return message.reply("Describe what you want to see!");
+    if (!prompt) return message.reply("Describe the image!");
 
-    try {
-      const waiting = await message.reply("🎨 Generating your image... please wait.");
-      
-      // Use a random seed to ensure a unique image every time
-      const seed = Math.floor(Math.random() * 99999);
-      const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}`;
-      
-      const attachment = new AttachmentBuilder(imageUrl, { name: 'ai_image.png' });
-      await message.reply({ files: [attachment] });
-      waiting.delete();
-    } catch (err) {
-      console.error(err);
-      message.reply("Failed to generate that image.");
-    }
+    const seed = Math.floor(Math.random() * 100000);
+    // Pollinations with 'flux' model for high quality
+    const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
+
+    const embed = new EmbedBuilder()
+      .setTitle("🎨 Image Result")
+      .setDescription(`**Prompt:** ${prompt}`)
+      .setImage(imageUrl) // This makes it show up in Discord!
+      .setColor('#00ff00')
+      .setFooter({ text: 'Generated via Flux/Pollinations' });
+
+    message.reply({ embeds: [embed] });
   }
 });
 
