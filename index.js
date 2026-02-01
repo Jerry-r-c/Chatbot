@@ -1,6 +1,20 @@
 const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
 const puter = require('@heyputer/puter.js');
+const express = require('express');
 
+// 1. Setup Express (Needed for Render to stay alive)
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('AI Bot is running 24/7!');
+});
+
+app.listen(port, () => {
+  console.log(`Web server is listening on port ${port}`);
+});
+
+// 2. Setup Discord Bot
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,10 +23,10 @@ const client = new Client({
   ],
 });
 
-const PREFIX = '.'; // Your requested prefix
+const PREFIX = '.'; 
 
 client.on('ready', () => {
-  console.log(`AI Bot is active!`);
+  console.log(`Logged in as ${client.user.tag}!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -32,6 +46,7 @@ client.on('messageCreate', async (message) => {
       });
       message.reply(response.toString());
     } catch (err) {
+      console.error(err);
       message.reply("Error talking to AI.");
     }
   }
@@ -41,18 +56,18 @@ client.on('messageCreate', async (message) => {
     const prompt = args.join(' ');
     if (!prompt) return message.reply("Describe the photo you want!");
 
-    message.channel.send("🎨 Generating your image... please wait.");
+    const waitingMsg = await message.channel.send("🎨 Generating your image... please wait.");
 
     try {
-      // Puter returns a readable stream/blob in Node.js
+      // Puter returns the image data
       const imageResponse = await puter.ai.txt2img(prompt, { 
         model: "gemini-3-pro-image-preview" 
       });
 
-      // Convert to a Discord attachment
+      // Send the image to Discord
       const attachment = new AttachmentBuilder(imageResponse, { name: 'generated.png' });
-      
-      message.reply({ files: [attachment] });
+      await message.reply({ files: [attachment] });
+      waitingMsg.delete();
     } catch (err) {
       console.error(err);
       message.reply("Failed to generate image.");
@@ -60,4 +75,5 @@ client.on('messageCreate', async (message) => {
   }
 });
 
+// Log in using the Environment Variable from Render
 client.login(process.env.DISCORD_TOKEN);
