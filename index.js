@@ -1,0 +1,63 @@
+const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
+const puter = require('@heyputer/puter.js');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+const PREFIX = '.'; // Your requested prefix
+
+client.on('ready', () => {
+  console.log(`AI Bot is active!`);
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
+
+  // .msg Command (AI Chat)
+  if (command === 'msg') {
+    const prompt = args.join(' ');
+    if (!prompt) return message.reply("Please provide a message!");
+
+    try {
+      const response = await puter.ai.chat(prompt, {
+        model: 'gemini-3-flash-preview'
+      });
+      message.reply(response.toString());
+    } catch (err) {
+      message.reply("Error talking to AI.");
+    }
+  }
+
+  // .pgen Command (Photo Gen)
+  if (command === 'pgen') {
+    const prompt = args.join(' ');
+    if (!prompt) return message.reply("Describe the photo you want!");
+
+    message.channel.send("🎨 Generating your image... please wait.");
+
+    try {
+      // Puter returns a readable stream/blob in Node.js
+      const imageResponse = await puter.ai.txt2img(prompt, { 
+        model: "gemini-3-pro-image-preview" 
+      });
+
+      // Convert to a Discord attachment
+      const attachment = new AttachmentBuilder(imageResponse, { name: 'generated.png' });
+      
+      message.reply({ files: [attachment] });
+    } catch (err) {
+      console.error(err);
+      message.reply("Failed to generate image.");
+    }
+  }
+});
+
+client.login(process.env.DISCORD_TOKEN);
