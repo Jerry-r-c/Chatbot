@@ -29,8 +29,8 @@ const User = mongoose.model('User', userSchema);
 // --- 3. AI CONFIG ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const MODELS = {
-  'gemini-2.5-flash': { name: 'Gemini 2.5 Flash', premium: false, id: 'gemini-2.5-flash' },
-  'gemini-3.0-flash': { name: 'Gemini 3.0 Flash (Premium)', premium: true, id: 'gemini-3.0-flash' }
+  'gemini-2.5-flash': { name: 'Free', premium: false, id: 'gemini-2.5-flash' },
+  'gemini-1.5-pro': { name: 'Premium, premium: true, id: 'gemini-1.5-pro' }
 };
 
 const client = new Client({
