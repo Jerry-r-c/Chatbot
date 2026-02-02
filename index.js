@@ -3,7 +3,7 @@ const express = require('express');
 const axios = require('axios');
 
 const app = express();
-app.get('/', (req, res) => res.send('Gemini 3 / 2.5 Flash Bot is Online!'));
+app.get('/', (req, res) => res.send('Flash Bot is Online!'));
 app.listen(process.env.PORT || 3000);
 
 const client = new Client({
