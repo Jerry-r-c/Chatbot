@@ -30,7 +30,7 @@ const User = mongoose.model('User', userSchema);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const MODELS = {
   'gemini-2.5-flash': { name: 'Free', premium: false, id: 'gemini-2.5-flash' },
-  'gemini-1.5-pro': { name: 'Premium, premium: true, id: 'gemini-1.5-pro' }
+  'gemini-1.5-pro': { name: 'Premium', premium: true, id: 'gemini-1.5-pro' }
 };
 
 const client = new Client({
